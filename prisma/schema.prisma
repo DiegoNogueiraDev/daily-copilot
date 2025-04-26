@@ -14,24 +14,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  LEADER
+  DEVELOPER
+}
+
 model User {
   id          String    @id @default(uuid())
   name        String
   email       String    @unique
+  password    String
+  role        UserRole  @default(DEVELOPER)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   summaries   Summary[]
   projects    Project[] @relation("UserProjects")
+  ownedProjects Project[] @relation("ProjectOwner")
 }
 
 model Project {
   id          String    @id @default(uuid())
   name        String
   description String?
+  ownerId     String
+  owner       User      @relation("ProjectOwner", fields: [ownerId], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   summaries   Summary[]
   users       User[]    @relation("UserProjects")
+
+  @@index([ownerId])
 }
 
 model Summary {
