@@ -1,0 +1,110 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# dailycopilot.mdc
+
+## 📌 CONTEXTO GERAL
+Daily‑Copilot é um sistema que substitui reuniões de daily stand‑up. Desenvolvedores registram seus resumos diários; o serviço classifica impedimentos e exibe métricas em dashboards interativos.
+
+## 🎯 OBJETIVOS DE NEGÓCIO
+1. Reduzir tempo gasto em reuniões (meta ≤ 5 min/dia por dev).
+2. Aumentar visibilidade de bloqueios críticos em tempo real.
+3. Entregar métricas de produtividade (velocity, topo de impedimentos) por projeto, dev e período.
+
+## 🏗️ ARQUITETURA DE REFERÊNCIA
+```
+┌────────────┐          HTTP          ┌──────────────────┐
+│ Frontend   │  ───────────────▶     │ MCP API (Next.js)│
+│ Next.js 15 │                       │  • Route Handlers │
+└────────────┘                       │  • Server Actions│
+       ▲ WebSocket                   ├───────────────────┤
+       │                             │ Application Core  │
+       │                             │  • Use Cases      │
+       │                             │  • Domain Models  │
+       ▼                             ├───────────────────┤
+┌────────────┐   gRPC/HTTP   ┌────────────┐   Prisma   ┌────────┐
+│ Dashboard  │◀──────────────│ Classifier │───────────▶│Postgres│
+│  LiveView  │               │ Llama‑4    │            └────────┘
+└────────────┘               └────────────┘
+```
+
+* **Classifier**: OpenRouter, modelo `meta‑llama/llama‑4‑maverick`.
+* **Infra**: Docker Compose (dev) / Helm + K8s (prod).
+
+## 🔧 TOOLS (MCP)
+### tool.register_summary
+Registra o resumo bruto do dev e recebe classificação automática.
+```jsonc
+{
+  "userId": "UUID",
+  "projectId": "UUID",
+  "text": "string",
+  "date": "YYYY‑MM‑DD"
+}
+```
+
+### tool.list_metrics
+Consulta métricas consolidadas.
+```jsonc
+{
+  "projectId"?: "UUID",
+  "userId"?: "UUID",
+  "period": "day"|"week"|"month"
+}
+```
+
+## 📐 PRINCÍPIOS DE ARQUITETURA
+| Categoria | Regra |
+|-----------|-------|
+| Clean Architecture | Separar camadas `domain`, `application`, `infrastructure`, `interface`. |
+| SOLID | Respeitar SRP, OCP, LSP, ISP, DIP em todas as camadas. |
+| DRY | Extrair abstrações reutilizáveis. |
+| DDD Lite | Modelos ricos (Value Objects, Entities) no pacote `domain`. |
+| Ports‑&‑Adapters | Core sem dependências de frameworks. |
+| Observabilidade | Cada serviço expõe `/metrics` Prometheus + logs estruturados. |
+| Security | OWASP Top 10, validação Zod, Escape/CSRF, RBAC, Rate Limit. |
+| Performance | Tailwind JIT, DB Indexes (`createdAt`, `projectId`,`userId`). |
+| Testes | ≥ 90 % cobertura unit + integração; E2E Playwright nos fluxos críticos. |
+| CI/CD | GitHub Actions → lint → test → build → scan (OWASP‑ZAP) → deploy Helm. |
+
+## 📝 PADRÃO DE RESUMO DOS DESENVOLVEDORES
+```
+[YYYY‑MM‑DD] <breve frase do que foi feito>
+BLOQUEIOS: <lista de impedimentos>
+SUGESTÕES: <opcionais>
+```
+
+## 🏷️ TAXONOMIA OFICIAL
+*Tags de atividade*: `code`, `tests`, `review`, `deploy`, `ci`, `docs`  
+*Blockers*: `dependency`, `env`, `spec`, `access`, `merge‑conflict`
+
+## 🔄 FLUXO DE REGISTRO
+1. Frontend envia texto para `/api/summary`.
+2. API valida (Zod) e chama `ClassifierService`.
+3. Classificador → OpenRouter (JSON output: tags, blockers, suggestions).
+4. Use‑Case `RegisterSummary` persiste no Postgres.
+5. Event emite atualização via WebSocket → Dashboard.
+
+## ⏱️ SERVICE LEVEL OBJECTIVES
+| Métrica | Meta |
+|---------|------|
+| Latência `POST /api/summary` P95 | ≤ 500 ms |
+| Classificação correta de bloqueios | ≥ 90 % |
+| Uptime API | ≥ 99.5 %/mês |
+
+## 🚨 GOVERNANÇA
+* **ADR**: registrar decisões em `/docs/adr/NNN‑*.md`.
+* **Versionamento**: semver, releases via Git tag + changelog.
+* **Segurança**: dependabot + Snyk scan semanal.
+
+## 📅 ROADMAP HIGH‑LEVEL
+1. MVP (abril/2025): registro & dashboard day/week.
+2. Sprint 2: heatmap mensal + export CSV.
+3. Sprint 3: notificações Slack/Jira.
+
+---
+> **Versão**: 1.0 – 26 Abr 2025  
+> **Manutenção**: @Thiiagoolost – Daily‑Copilot Core
+
