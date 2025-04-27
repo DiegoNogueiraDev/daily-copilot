@@ -84,3 +84,29 @@ model Suggestion {
   text        String
   summaries   Summary[] @relation("SummarySuggestions")
 }
+
+model BuildError {
+  id              String     @id @default(uuid())
+  message         String
+  stack           String?
+  type            String     // build, test, lint, typecheck, runtime
+  severity        String     // critical, high, medium, low
+  file            String?
+  line            Int?
+  column          Int?
+  projectId       String
+  userId          String
+  solved          Boolean    @default(false)
+  solutionApplied String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id])
+  project        Project     @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([type])
+  @@index([solved])
+  @@index([createdAt])
+}
